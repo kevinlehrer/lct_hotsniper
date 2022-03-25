@@ -17,6 +17,7 @@
 #include "policies/dvfsTSP.h"
 #include "policies/dvfsTestStaticPower.h"
 #include "policies/mapFirstUnused.h"
+#include "policies/dvfsOndemand.h"
 
 #include <iomanip>
 #include <random>
@@ -309,6 +310,27 @@ void SchedulerOpen::initDVFSPolicy(String policyName) {
 		dvfsPolicy = new DVFSFixedPower(performanceCounters, coreRows, coreColumns, minFrequency, maxFrequency, frequencyStepSize, perCorePowerBudget);
 	} else if (policyName == "tsp") {
 		dvfsPolicy = new DVFSTSP(thermalModel, performanceCounters, coreRows, coreColumns, minFrequency, maxFrequency, frequencyStepSize);
+	} else if (policyName == "ondemand") {
+		float upThreshold = Sim()->getCfg()->getFloat(
+			"scheduler/open/dvfs/ondemand/up_threshold");
+		float downThreshold = Sim()->getCfg()->getFloat(
+			"scheduler/open/dvfs/ondemand/down_threshold");
+		float dtmCriticalTemperature = Sim()->getCfg()->getFloat(
+			"scheduler/open/dvfs/ondemand/dtm_cricital_temperature");
+		float dtmRecoveredTemperature = Sim()->getCfg()->getFloat(
+			"scheduler/open/dvfs/ondemand/dtm_recovered_temperature");
+		dvfsPolicy = new DVFSOndemand(
+			performanceCounters,
+			coreRows,
+			coreColumns,
+			minFrequency,
+			maxFrequency,
+			frequencyStepSize,
+			upThreshold,
+			downThreshold,
+			dtmCriticalTemperature,
+			dtmRecoveredTemperature
+		);
 	} //else if (policyName ="XYZ") {... } //Place to instantiate a new DVFS logic. Implementation is put in "policies" package.
 	else {
 		cout << "\n[Scheduler] [Error]: Unknown DVFS Algorithm" << endl;
