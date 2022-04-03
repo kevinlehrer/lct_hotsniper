@@ -18,6 +18,7 @@
 #include "policies/dvfsTestStaticPower.h"
 #include "policies/mapFirstUnused.h"
 #include "policies/dvfsOndemand.h"
+#include "policies/coldestCore.h"
 
 #include <iomanip>
 #include <random>
@@ -287,6 +288,11 @@ void SchedulerOpen::initMappingPolicy(String policyName) {
 			}
 		}
 		mappingPolicy = new MapFirstUnused(coreRows, coreColumns, preferredCoresOrder);
+	} else if (policyName == "coldestCore") {
+		float criticalTemperature = Sim()->getCfg()->getFloat(
+		"scheduler/open/migration/coldestCore/criticalTemperature");
+		mappingPolicy = new ColdestCore(performanceCounters, coreRows,
+		coreColumns, criticalTemperature);
 	} //else if (policyName ="XYZ") {... } //Place to instantiate a new mapping logic. Implementation is put in "policies" package.
 	else {
 		cout << "\n[Scheduler] [Error]: Unknown Mapping Algorithm" << endl;
@@ -345,6 +351,11 @@ void SchedulerOpen::initMigrationPolicy(String policyName) {
 	cout << "[Scheduler] [Info]: Initializing migration policy" << endl;
 	if (policyName == "off") {
 		migrationPolicy = NULL;
+	} else if (policyName == "coldestCore") {
+		float criticalTemperature = Sim()->getCfg()->getFloat(
+		"scheduler/open/migration/coldestCore/criticalTemperature");
+		migrationPolicy = new ColdestCore(performanceCounters, coreRows,
+		coreColumns, criticalTemperature);
 	} //else if (policyName ="XYZ") {... } //Place to instantiate a new migration logic. Implementation is put in "policies" package.
 	else {
 		cout << "\n[Scheduler] [Error]: Unknown Migration Algorithm" << endl;
