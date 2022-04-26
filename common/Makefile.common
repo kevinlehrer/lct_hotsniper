@@ -6,11 +6,17 @@ DIRECTORIES := ${shell find $(SIM_ROOT)/common -type d -print} \
 	$(SIM_ROOT)/include
 
 LIBCARBON_SOURCES = $(foreach dir,$(DIRECTORIES),$(wildcard $(dir)/*.cc)) \
-	$(wildcard $(SIM_ROOT)/common/config/*.cpp)
+	$(wildcard $(SIM_ROOT)/common/config/*.cpp) \
+	$(wildcard $(SIM_ROOT)/common/xcslib/*.cpp)
 
 LIBCARBON_OBJECTS = $(patsubst %.cpp,%.o,$(patsubst %.c,%.o,$(patsubst %.cc,%.o,$(LIBCARBON_SOURCES) ) ) )
 
-INCLUDE_DIRECTORIES = $(DIRECTORIES) $(XED_HOME)/include/xed $(SIM_ROOT)/linux $(SIM_ROOT)/sift $(SIM_ROOT)/decoder_lib
+LIBXCS_SOURCES = $(foreach dir,$(DIRECTORIES),$(wildcard $(dir)/*.cc)) \
+	$(wildcard $(SIM_ROOT)/common/xcslib/*.cpp)
+
+LIBXCS_OBJECTS = $(patsubst %.cpp,%.o,$(patsubst %.c,%.o,$(patsubst %.cc,%.o,$(LIBXCS_SOURCES) ) ) )
+
+INCLUDE_DIRECTORIES = $(DIRECTORIES) $(XED_HOME)/include/xed $(SIM_ROOT)/linux $(SIM_ROOT)/sift $(SIM_ROOT)/decoder_lib $(SIM_ROOT)/common/xcslib
 
 CLEAN=$(findstring clean,$(MAKECMDGOALS))
 
@@ -46,12 +52,60 @@ export LD_LIBRARY_PATH := $(SIM_ROOT)/lib:$(LD_LIBRARY_PATH)
 # Include paths
 CPPFLAGS+=$(foreach dir,$(INCLUDE_DIRECTORIES),-I$(dir)) \
           -I$(SIM_ROOT)/python_kit/$(SNIPER_TARGET_ARCH)/include/python2.7 \
-          -I$(SIM_ROOT)/capstone/include 
+          -I$(SIM_ROOT)/capstone/include -w
 
 CXXFLAGS+=-c \
           -Wall -Wextra -Wcast-align -Wno-unused-parameter -Wno-unknown-pragmas -std=c++11 -fno-strict-aliasing $(OPT_CFLAGS) #-Werror	  
 #CXXFLAGS+=-I$(SIM_ROOT)/rv8/src
 #CXXFLAGS+=-I$(SIM_ROOT)/rv8
+
+######################################################################
+# XCS lib specific defines
+EXTCXXFLAGS := -I. $(CXXFLAGS)
+OPT = -g
+
+# INPUTS: binary_inputs, real_inputs
+# ACTIONS: dummy_action, boolean_action, binary_action, integer_action
+# CONDITIONS: ternary_condition, real_interval_condition
+# ENVIRONMENTS: multiplexer_env, woods_env, woods2_env, real_functions_env
+
+INPUTS = real_inputs
+ACTIONS = integer_action
+CONDITIONS = real_interval_condition
+CLASSIFIER = xcs
+MODEL = xcs
+ENVIRONMENT = multiplexer_env
+EXPERIMENT_MANAGER = experiment_mgr
+
+__DET_INCLUDE__="$(INPUTS).hpp"
+__COND_INCLUDE__="$(CONDITIONS).hpp"
+__ACT_INCLUDE__="$(ACTIONS).hpp"
+__CLS_INCLUDE__="$(CLASSIFIER)_classifier.hpp"
+__MOD_INCLUDE__="$(CLASSIFIER)_classifier_system.hpp"
+
+EXTSYS_INCLUDE = \
+	-D __DET_INCLUDE__='"$(INPUTS).hpp"' \
+	-D __COND_INCLUDE__='"$(CONDITIONS).hpp"' \
+	-D __ACT_INCLUDE__='"$(ACTIONS).hpp"' \
+	-D __CLS_INCLUDE__='"$(CLASSIFIER)_classifier.hpp"' \
+	-D __MOD_INCLUDE__='"$(MODEL)_classifier_system.hpp"' 
+	
+ENV_INCLUDE = \
+	-D __ENV_INCLUDE__='"$(ENVIRONMENT).hpp"' 
+
+ENV_CLASSDEF = \
+	-D __ENVIRONMENT__=$(ENVIRONMENT)
+	
+EXTSYS_CLASSDEF = \
+	-D __INPUTS__=$(INPUTS) \
+	-D __ACTION__=$(ACTIONS) \
+	-D __CONDITION__=$(CONDITIONS) \
+	-D __CLASSIFIER__=$(CLASSIFIER)_classifier \
+	-D __MODEL__=$(MODEL)_classifier_system
+
+CXXFLAGS += $(EXTSYS_CLASSDEF) $(EXTSYS_INCLUDE) $(ENV_CLASSDEF) $(ENV_INCLUDE) -w
+#override CXXFLAGS := $(EXTCXXFLAGS) $(OPT) $(EXTSYS_CLASSDEF) $(ENV_CLASSDEF) $(EXTSYS_INCLUDE) $(ENV_INCLUDE) 
+######################################################################
 
 %.h %.hh %.hpp:
 	@echo >&2
@@ -59,6 +113,8 @@ CXXFLAGS+=-c \
 	@echo "        You may want to try running 'make empty_deps'" >&2
 	@echo >&2
 	@false
+
+
 
 # Build rules for dependency generation
 %.d: %.cpp
