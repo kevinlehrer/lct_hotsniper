@@ -24,15 +24,23 @@ def change_base_configuration(base_configuration):
     with open(base_cfg, 'r') as f:
         content = f.read()
     with open(base_cfg, 'w') as f:
+        print("************* i am a test **************")
         for line in content.splitlines():
             m = re.match('.*cfg:(!?)([a-zA-Z_\\.0-9]+)$', line)
             if m:
                 inverted = m.group(1) == '!'
+                print("...")
+                print(m.group(2))
                 include = inverted ^ (m.group(2) in base_configuration)
                 included = line[0] != '#'
                 if include and not included:
+                    print("hello")
+                    print(line)
+                    print(line[1:])
                     line = line[1:]
                 elif not include and included:
+                    print("ciao")
+                    print(line)
                     line = '#' + line
             f.write(line)
             f.write('\n')
@@ -226,22 +234,26 @@ def example():
                       #'splash2-lu.cont',
                       #'splash2-lu.ncont',
                       #'splash2-radix'
-                      ):
+                      ): # possible input_sets parsec: test, simdev, simsmall, simmedium, simlarge, native
         min_parallelism = get_feasible_parallelisms(benchmark)[0]
         max_parallelism = get_feasible_parallelisms(benchmark)[-1]
         for freq in (1, 4):
             for parallelism in (max_parallelism,):
                 # you can also use try_run instead
-                run(['{:.1f}GHz'.format(freq), 'maxFreq', 'slowDVFS'], get_instance(benchmark, parallelism, input_set='simsmall'))
+                run(['{:.1f}GHz'.format(freq), 'maxFreq', 'fastDVFS'], get_instance(benchmark, parallelism, input_set='simsmall'))
 
 
 def test_static_power():
     run(['4.0GHz', 'testStaticPower', 'slowDVFS'], get_instance('parsec-blackscholes', 3, input_set='simsmall'))
 
+def test_custom_dvfs():
+    run(['xcs', 'slowDVFS'], get_instance('parsec-blackscholes', 3, input_set='simsmall'))
+
 
 def main():
-    example()
+    #example()
     #test_static_power()
+    test_custom_dvfs()
 
 
 if __name__ == '__main__':

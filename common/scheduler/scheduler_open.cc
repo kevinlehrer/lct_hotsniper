@@ -19,6 +19,7 @@
 #include "policies/mapFirstUnused.h"
 #include "policies/dvfsOndemand.h"
 #include "policies/coldestCore.h"
+#include "policies/dvfsXCS.h"
 
 #include <iomanip>
 #include <random>
@@ -326,6 +327,27 @@ void SchedulerOpen::initDVFSPolicy(String policyName) {
 		float dtmRecoveredTemperature = Sim()->getCfg()->getFloat(
 			"scheduler/open/dvfs/ondemand/dtm_recovered_temperature");
 		dvfsPolicy = new DVFSOndemand(
+			performanceCounters,
+			coreRows,
+			coreColumns,
+			minFrequency,
+			maxFrequency,
+			frequencyStepSize,
+			upThreshold,
+			downThreshold,
+			dtmCriticalTemperature,
+			dtmRecoveredTemperature
+		);
+	} else if (policyName == "xcs") {
+		float upThreshold = Sim()->getCfg()->getFloat(
+			"scheduler/open/dvfs/ondemand/up_threshold");
+		float downThreshold = Sim()->getCfg()->getFloat(
+			"scheduler/open/dvfs/ondemand/down_threshold");
+		float dtmCriticalTemperature = Sim()->getCfg()->getFloat(
+			"scheduler/open/dvfs/ondemand/dtm_cricital_temperature");
+		float dtmRecoveredTemperature = Sim()->getCfg()->getFloat(
+			"scheduler/open/dvfs/ondemand/dtm_recovered_temperature");
+		dvfsPolicy = new DVFSxcs(
 			performanceCounters,
 			coreRows,
 			coreColumns,
