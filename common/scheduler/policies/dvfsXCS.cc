@@ -1,11 +1,17 @@
 #include "dvfsXCS.h"
 #include <iomanip>
 #include <iostream>
+#include <vector>
 
 using namespace std;
 
 t_classifier_system* XCS;
 t_environment* Environment;
+int global_core_id;         // temporary stores a core id for the current core in control loop
+float global_frequency;     // temporary stores old frequency for current core in control loop
+
+vector<t_classifier_system> xcs_systems;
+
 
 DVFSxcs::DVFSxcs(
         const PerformanceCounters *performanceCounters,
@@ -29,6 +35,7 @@ DVFSxcs::DVFSxcs(
       dtmCriticalTemperature(dtmCriticalTemperature),
       dtmRecoveredTemperature(dtmRecoveredTemperature)
 {
+    //! output information about xcs classifier build
     cout << "[Scheduler][xcs] Initializing XCS classifier system" << endl;
     cerr << "\tXCSLIB\tVERSION " << __XCSLIB_VERSION__ << endl;
     cerr << "      \t\tBUILT   " << __DATE__ << endl;
@@ -39,38 +46,84 @@ DVFSxcs::DVFSxcs(
     cerr << "      \t\tCONDITIIONS " << __CONDITION_VERSION__ << endl;
     cerr << endl << endl;
 
-    cout << "[Scheduler][xcs] Initializing configuration manager" << endl;
     //! init the configuration manager
-    //xcs_config2 = new xcs_config_mgr2();
-    //xcs_config2 = xcs_config_mgr2(); 
-	//! init random the number generator
-	//xcs_random::set_seed(&xcs_config2);
+    xcs_config2 = xcs_config_mgr2(); 
 
-    //cout << "[Scheduler][xcs] Initializing action class" << endl;
+	//! init random the number generator
+	xcs_random::set_seed(xcs_config2);
+
+    //! set global core id initially to 0
+    global_core_id = 0;
+
 	//! init the action class
-	//dummy_action = t_action(xcs_config2);
     dummy_action = new t_action(xcs_config2);
 
-    cout << "[Scheduler][xcs] Initializing environment" << endl;
 	//! init the environment
-	Environment = new t_environment(xcs_config2);
+	Environment = new t_environment(xcs_config2, performanceCounters);
 
-    cout << "[Scheduler][xcs] Initializing condition class" << endl;
 	//! init the condition class
-    //dummy_condition = t_condition(xcs_config2);
     dummy_condition = new t_condition(xcs_config2);
 
-    cout << "[Scheduler][xcs] Initializing classifier system" << endl;
 	//! init the XCS classifier system
-	//xcs_classifier = t_classifier_system(xcs_config2);
     XCS = new t_classifier_system(xcs_config2);
 
-    cout << "[Scheduler][xcs] Initializing experiment manager" << endl;
 	//! init the experiment manager
 	Session = new experiment_mgr(xcs_config2);
 
-    cout << "[Scheduler][xcs] Initializing done..." << endl;
-    //Session->perform_experiments();
+    //! true if condensation is active
+    flag_condensation = false;
+
+    //! the first problem is always solved in exploration
+    flag_exploration = true;
+
+    //! init XCS for the current experiment
+    XCS->begin_experiment();
+    XCS->begin_problem();
+    Environment->begin_problem(true);
+
+    //! create xcs classifier for each core
+    for(auto i=0; i< coreRows * coreColumns; i++)
+    {
+        cout << "[Scheduler][xcs] Classifier System: Creating system for core " << i << endl;
+        t_classifier_system xcs_system = t_classifier_system(xcs_config2);
+        xcs_systems.push_back(xcs_system);
+    }
+
+    //! initialize xcs classifier systems
+    for(auto i=0; i< coreRows * coreColumns; i++)
+    {
+        cout << "[Scheduler][xcs] Classifier System: Starting problem for core " << i << endl;
+        xcs_systems[i].begin_experiment();
+        xcs_systems[i].begin_problem();
+    }
+    
+
+
+
+
+    # if 1
+	int coreCounter = global_core_id;
+	/* get performance counters for current core    */
+	float power = performanceCounters->getPowerOfCore(coreCounter);     // not needed
+	float temperature = performanceCounters->getTemperatureOfCore(
+		coreCounter);
+	//int frequency = oldFrequencies.at(coreCounter);
+	float utilization = performanceCounters->getUtilizationOfCore(
+		coreCounter);
+	float ips = performanceCounters->getIPSOfCore(coreCounter);
+	int frequency = performanceCounters->getFreqOfCore(global_core_id);
+
+	cout << "[Scheduler][xcs][Environment]: Core " << setw(2) << coreCounter
+			<< ":";
+	cout << " P=" << fixed << setprecision(3) << power << " W";
+	cout << " f=" << frequency << " MHz";
+	cout << " T=" << fixed << setprecision(1) << temperature << " C";
+	cout << " IPS=" << fixed << setprecision(3) << ips;
+	// avoid the little circle symbol, it is not ASCII
+	cout << " utilization=" << fixed << setprecision(3) << utilization
+			<< endl;
+	# endif
+
 }
 
 
@@ -85,10 +138,17 @@ std::vector<int> DVFSxcs::getFrequencies(
         const std::vector<int> &oldFrequencies,
         const std::vector<bool> &activeCores)
 {
+    cout << "[Scheduler][xcs]: getFrequencies() called " << endl;
+    cout << "[Scheduler][xcs]: oldFrequencies: " << endl;
+    for(auto i=0; i<coreRows*coreColumns; i++)
+        cout << "\t\tc_" << i << "f_" << oldFrequencies.at(i) << endl;
+
+
+    
     if (throttle())
     {
         std::vector<int> minFrequencies(coreRows * coreColumns, minFrequency);
-        cout << "[Scheduler][ondemand-DTM]: in throttle mode -> return min. \
+        cout << "[Scheduler][xcs]: in throttle mode -> return min. \
             frequencies " << endl;
             return minFrequencies;
     }
@@ -103,25 +163,18 @@ std::vector<int> DVFSxcs::getFrequencies(
             /* check if current core is active  */
             if (activeCores.at(coreCounter))
             {
-                /* get performance counters for current core    */
-                float power = performanceCounters->getPowerOfCore(coreCounter);     // not needed
-                float temperature = performanceCounters->getTemperatureOfCore(
-                    coreCounter);
-                int frequency = oldFrequencies.at(coreCounter);
-                float utilization = performanceCounters->getUtilizationOfCore(
-                    coreCounter);
-                float ips = performanceCounters->getIPSOfCore(coreCounter);
+                /* set global core id to current core for xcs to access core    */
+                global_core_id = coreCounter;
 
-                
-                cout << "[Scheduler][xcs]: Core " << setw(2) << coreCounter
-                     << ":";
-                cout << " P=" << fixed << setprecision(3) << power << " W";
-                cout << " f=" << frequency << " MHz";
-                cout << " T=" << fixed << setprecision(1) << temperature << " C";
-                cout << " IPS=" << fixed << setprecision(3) << ips;
-                // avoid the little circle symbol, it is not ASCII
-                cout << " utilization=" << fixed << setprecision(3) << utilization
-                     << endl;
+                /* set global frequency to old frequency of current core    */
+                global_frequency = oldFrequencies.at(coreCounter);
+                cout << "[Scheduler][xcs]: global_frequency = " << global_frequency << endl;
+
+                /* step in xcs classifier of current core   */
+                Environment->update_inputs();
+                xcs_systems[coreCounter].step(flag_exploration, flag_condensation);
+            
+                #if 0
                 // use same period for upscaling and downscaling as described
                 // in "The ondemand governor."
                 if (utilization > upThreshold)
@@ -157,6 +210,7 @@ std::vector<int> DVFSxcs::getFrequencies(
                     }
                 }
                 frequencies.at(coreCounter) = frequency;
+                #endif
             }
             else
             {

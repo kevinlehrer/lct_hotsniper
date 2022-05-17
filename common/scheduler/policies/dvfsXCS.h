@@ -61,6 +61,12 @@ class DVFSxcs : public DVFSPolicy {
         bool in_throttle_mode = false;
         bool throttle();
 
+        /**********************************************************************/
+        /* XCS specific stuff *************************************************/
+        /**********************************************************************/
+        bool flag_exploration;
+        bool flag_condensation;
+
         
 };
 
