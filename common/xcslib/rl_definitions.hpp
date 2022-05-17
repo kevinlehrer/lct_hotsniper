@@ -101,4 +101,7 @@ typedef __ENVIRONMENT__ t_environment;
 #include __ACT_INCLUDE__
 	
 extern t_environment*	Environment;
+
+extern int global_core_id;
+extern float global_frequency;
 #endif
