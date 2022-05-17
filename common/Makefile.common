@@ -67,14 +67,14 @@ OPT = -g
 # INPUTS: binary_inputs, real_inputs
 # ACTIONS: dummy_action, boolean_action, binary_action, integer_action
 # CONDITIONS: ternary_condition, real_interval_condition
-# ENVIRONMENTS: multiplexer_env, woods_env, woods2_env, real_functions_env
+# ENVIRONMENTS: multiplexer_env, woods_env, woods2_env, real_functions_env, core_env (custom)
 
 INPUTS = real_inputs
 ACTIONS = integer_action
 CONDITIONS = real_interval_condition
 CLASSIFIER = xcs
 MODEL = xcs
-ENVIRONMENT = multiplexer_env
+ENVIRONMENT = core_env
 EXPERIMENT_MANAGER = experiment_mgr
 
 __DET_INCLUDE__="$(INPUTS).hpp"
