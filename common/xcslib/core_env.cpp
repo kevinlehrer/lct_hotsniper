@@ -75,6 +75,20 @@
 
 using namespace std;
 
+#define SCALE_FREQUENCY			(1 / 4000)
+#define SCALE_UTILIZATION		1
+#define SCALE_IPS 				(1 / 4e9)
+
+#define SEL_FREQUENCY		0
+#define SEL_UTILIZATION		1
+#define SEL_IPS				2
+
+#define IPS_REF				  5000000
+#define IPS_MAX				400000000
+#define POW_CONSTRAIN		1 				// [W] in benchmarks usually 1.2 if full 
+
+#define DELTA_F				100				// [MHz]
+
 bool	core_env::init=false;	//!< set the init flag to false so that the use of the config manager becomes mandatory
 //#define __DEBUG__
 double			core_env::min_input;
@@ -104,9 +118,11 @@ core_env::core_env(xcs_config_mgr2& xcs_config)
 
 		// create initial input values
 		current_inputs.clear();
+		current_inputs_scaled.clear();
 		for(int i=0;i<no_inputs;i++)
 		{
 			current_inputs.push_back(min_input);
+			current_inputs_scaled.push_back(min_input);
 		}
 
 	}
@@ -118,46 +134,6 @@ core_env::core_env(xcs_config_mgr2& xcs_config, const PerformanceCounters* count
 {
 	new (this) core_env(xcs_config);
 	measurements = counters;
-
-	//for(int i=0; i<n; i++)
-	cout << "I am a stupid test " << endl;
-
-	// DEBUG: print initial performance counters to check if access works
-	# if 1
-	int coreCounter = 0;
-	/* get performance counters for current core    */
-	float power = measurements->getPowerOfCore(coreCounter);     // not needed
-	float temperature = measurements->getTemperatureOfCore(
-		coreCounter);
-	//int frequency = oldFrequencies.at(coreCounter);
-	float utilization = measurements->getUtilizationOfCore(
-		coreCounter);
-	float ips = measurements->getIPSOfCore(coreCounter);
-
-	cout << "[Scheduler][xcs]: Core " << setw(2) << coreCounter
-			<< ":";
-	cout << " P=" << fixed << setprecision(3) << power << " W";
-	//cout << " f=" << frequency << " MHz";
-	cout << " T=" << fixed << setprecision(1) << temperature << " C";
-	cout << " IPS=" << fixed << setprecision(3) << ips;
-	// avoid the little circle symbol, it is not ASCII
-	cout << " utilization=" << fixed << setprecision(3) << utilization
-			<< endl;
-	# endif
-}
-
-/*!
- * \fn void core_env::begin_problem(const bool explore)
- * \param explore true if the problem is solved in exploration
- *
- * \brief generates a new input configuration for the Boolean multiplexer
- */
-void	
-core_env::begin_problem(const bool explore)
-{
-	current_reward = 0;
-
-	update_inputs();
 
 	// DEBUG: print initial performance counters to check if access works
 	# if 0
@@ -183,6 +159,20 @@ core_env::begin_problem(const bool explore)
 	# endif
 }
 
+/*!
+ * \fn void core_env::begin_problem(const bool explore)
+ * \param explore true if the problem is solved in exploration
+ *
+ * \brief generates a new input configuration for the Boolean multiplexer
+ */
+void	
+core_env::begin_problem(const bool explore)
+{
+	current_reward = 0;
+
+	update_inputs();
+}
+
 bool	
 core_env::stop()
 const
@@ -190,6 +180,28 @@ const
 	return(true); 
 }
 
+double 
+core_env::reward()  const
+{
+	float current_power = measurements->getPowerOfCore(global_core_id);
+
+	/* update inputs: we want to have inputs after action got used	*/
+	//update_inputs();
+
+	/* reward function as described in not published paper	*/
+	double delta = abs( current_inputs[SEL_IPS] - IPS_REF) / IPS_MAX;
+	double reward;
+	if(current_power <= POW_CONSTRAIN)
+	{
+		reward = 1 - delta;
+	}
+	else
+	{
+		reward = 0;
+	}
+
+	return reward;
+}
 
 void	
 core_env::perform(const t_action& action)
@@ -197,39 +209,20 @@ core_env::perform(const t_action& action)
 	// TODO: perform action via HotSniper funcitons
 	// Actions: increase frequency, decrease frequency, keep frequency constant
 	// Reward handling???
-
-	#if 0
-	unsigned long		address;
-	unsigned long		index;		//! index of the output bit
-	string			str_inputs;
-
-	str_inputs = inputs.string_value();
-
-	index = xcs_utility::binary2long(str_inputs.substr(0,address_size));
-	address = address_size + index;
-
-	if (!flag_layered_reward)
+	
+	if(action.value() == 0)		// keep frequency
 	{
-		if ((str_inputs[address]-'0 
-		')==action.value())
-		{
-			current_reward = 1000;
-			solved = true;
-		} else {
-			current_reward = 0;
-			solved = false;
-		}
-	} else {
-		if ((str_inputs[address]-'0')==action.value())
-		{
-			current_reward = 300 + index*200 + double(100*(unsigned long)(str_inputs[address]-'0'));
-			solved = true;
-		} else {
-			current_reward = index*200 + double(100*(unsigned long)(str_inputs[address]-'0'));
-			solved = false;
-		}
+		global_delta_frequency = 0;
 	}
-	#endif
+	else if(action.value() == 1)
+	{
+		global_delta_frequency = DELTA_F;
+	}
+	else
+	{
+		global_delta_frequency = -DELTA_F;
+	}
+	global_frequency += global_delta_frequency;	
 }
 
 //! only the current reward is traced
@@ -301,19 +294,22 @@ core_env::state()
 void
 core_env::update_inputs()
 {
-	//current_inputs[0] = measurements->getFreqOfCore(global_core_id);
-	current_inputs[0] = global_frequency;
-	current_inputs[1] = measurements->getUtilizationOfCore(global_core_id);
-	current_inputs[2] = measurements->getIPSOfCore(global_core_id);
+	current_inputs[SEL_FREQUENCY] = global_frequency;
+	current_inputs[SEL_UTILIZATION] = measurements->getUtilizationOfCore(global_core_id);
+	current_inputs[SEL_IPS] = measurements->getIPSOfCore(global_core_id);
+
+	current_inputs_scaled[SEL_FREQUENCY] = global_frequency * SCALE_FREQUENCY;
+	current_inputs_scaled[SEL_UTILIZATION] = measurements->getUtilizationOfCore(global_core_id) * SCALE_UTILIZATION;
+	current_inputs_scaled[SEL_IPS] = measurements->getIPSOfCore(global_core_id) *SCALE_IPS;
 
 	real_inputs tmp(no_inputs);
 
 	for(int i=0;i<no_inputs;i++)
-		tmp.set_input(i,current_inputs[i]);
+		tmp.set_input(i,current_inputs_scaled[i]);
 
 	inputs = tmp;
 
-	# if 1
+	# if 0
 	int coreCounter = global_core_id;
 	/* get performance counters for current core    */
 	float power = measurements->getPowerOfCore(coreCounter);     // not needed

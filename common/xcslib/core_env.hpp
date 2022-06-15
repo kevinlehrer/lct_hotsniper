@@ -147,7 +147,9 @@ class core_env : public virtual environment_base
 
 	virtual bool single_step() const {return true;};
 	
-	virtual double reward() const {assert(current_reward==core_env::current_reward); return current_reward;};
+	//virtual double reward() const {assert(current_reward==core_env::current_reward); return current_reward;};
+	
+	double reward() const;
 
 	virtual t_state state() const { return inputs; };
 
@@ -162,9 +164,10 @@ class core_env : public virtual environment_base
 	static double 			max_input;		//! minimum possible input
 	static unsigned long	no_inputs;		//! number of inputs
 
-	t_state					inputs;			//!< current input configuration
+	t_state					inputs;				//!< current input configuration
 	vector<double>			current_inputs;		//!< same information as in "inputs" as a vector of double
 	vector<double>			problem_in;
+	vector<double>			current_inputs_scaled;
 
 	int 					core_id;
 

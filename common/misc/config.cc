@@ -56,7 +56,7 @@ Config::Config(SimulationMode mode)
 
    m_knob_output_directory = Sim()->getCfg()->getString("general/output_dir");
    m_knob_total_cores = Sim()->getCfg()->getInt("general/total_cores");
-
+   std::cout << "n_cores = " << m_knob_total_cores << std::endl;
    m_knob_num_host_cores = Sim()->getCfg()->getInt("general/num_host_cores");
    if (m_knob_num_host_cores == 0)
    {

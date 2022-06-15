@@ -9,6 +9,7 @@ t_classifier_system* XCS;
 t_environment* Environment;
 int global_core_id;         // temporary stores a core id for the current core in control loop
 float global_frequency;     // temporary stores old frequency for current core in control loop
+int global_delta_frequency; // unit to adjust frequency
 
 vector<t_classifier_system> xcs_systems;
 
@@ -97,11 +98,10 @@ DVFSxcs::DVFSxcs(
         xcs_systems[i].begin_problem();
     }
     
+    //! set initialized to false - set true once getFrequencies is called
+    initialized = false;
 
-
-
-
-    # if 1
+    # if 0
 	int coreCounter = global_core_id;
 	/* get performance counters for current core    */
 	float power = performanceCounters->getPowerOfCore(coreCounter);     // not needed
@@ -109,7 +109,7 @@ DVFSxcs::DVFSxcs(
 		coreCounter);
 	//int frequency = oldFrequencies.at(coreCounter);
 	float utilization = performanceCounters->getUtilizationOfCore(
-		coreCounter);
+		coreCounter);ſ
 	float ips = performanceCounters->getIPSOfCore(coreCounter);
 	int frequency = performanceCounters->getFreqOfCore(global_core_id);
 
@@ -123,6 +123,9 @@ DVFSxcs::DVFSxcs(
 	cout << " utilization=" << fixed << setprecision(3) << utilization
 			<< endl;
 	# endif
+
+    //! set xcs action flag to true
+    xcs_perform_action = true;
 
 }
 
@@ -138,85 +141,100 @@ std::vector<int> DVFSxcs::getFrequencies(
         const std::vector<int> &oldFrequencies,
         const std::vector<bool> &activeCores)
 {
+    # if 0
     cout << "[Scheduler][xcs]: getFrequencies() called " << endl;
     cout << "[Scheduler][xcs]: oldFrequencies: " << endl;
     for(auto i=0; i<coreRows*coreColumns; i++)
         cout << "\t\tc_" << i << "f_" << oldFrequencies.at(i) << endl;
-
-
+    #endif
     
+    /* check if cpu is in throttle mode due to reaching critical temperature  */
     if (throttle())
     {
         std::vector<int> minFrequencies(coreRows * coreColumns, minFrequency);
         cout << "[Scheduler][xcs]: in throttle mode -> return min. \
             frequencies " << endl;
-            return minFrequencies;
+        return minFrequencies;
+    }
+    /* check if first call of getFrequency() -> then initial frequencies set  */
+    else if (!initialized)
+    {
+        std::vector<int> minFrequencies(coreRows * coreColumns, minFrequency);
+        cout << "[Scheduler][xcs]: system initialized with min frequency " << endl;
+        initialized = true;
+        return minFrequencies;
     }
     else
     {
+        //cout << "[Scheduler][xcs]: calling xcs " << endl;
         std::vector<int> frequencies(coreRows * coreColumns);
 
-        /* loop through all avaiable cores  */
-        for (unsigned int coreCounter = 0; coreCounter < coreRows * coreColumns;
-             coreCounter++)
+        #if 1
+        if(xcs_perform_action) // change frequencies according to xcs
         {
-            /* check if current core is active  */
-            if (activeCores.at(coreCounter))
+            //cout << "[xcs]: perform action" << endl;
+            /* loop through all avaiable cores  */
+            for (unsigned int coreCounter = 0; coreCounter < coreRows * coreColumns;
+                coreCounter++)
             {
-                /* set global core id to current core for xcs to access core    */
-                global_core_id = coreCounter;
-
-                /* set global frequency to old frequency of current core    */
-                global_frequency = oldFrequencies.at(coreCounter);
-                cout << "[Scheduler][xcs]: global_frequency = " << global_frequency << endl;
-
-                /* step in xcs classifier of current core   */
-                Environment->update_inputs();
-                xcs_systems[coreCounter].step(flag_exploration, flag_condensation);
-            
-                #if 0
-                // use same period for upscaling and downscaling as described
-                // in "The ondemand governor."
-                if (utilization > upThreshold)
+                /* check if current core is active  */
+                if (activeCores.at(coreCounter))
                 {
-                    cout << "[Scheduler][xcs]: utilization > upThreshold";
-                    if (frequency == maxFrequency)
-                    {
-                        cout << " but already at max frequency" << endl;
-                    }
-                    else
-                    {
-                        cout << " -> go to max frequency" << endl;
-                        frequency = maxFrequency;
-                    }
+                    /* set global core id to current core for xcs to access core    */
+                    global_core_id = coreCounter;
+
+                    /* set global frequency to old frequency of current core        */
+                    global_frequency = oldFrequencies.at(coreCounter);
+                    global_delta_frequency = 0;
+
+                    /* step in xcs classifier of current core                       */
+                    Environment->update_inputs();
+                    xcs_systems[coreCounter].step(flag_exploration, flag_condensation,xcs_perform_action);
+
+                    /* set new frequency for current core -> action of xcs system   */
+                    frequencies.at(coreCounter) = global_frequency;
+                    //cout << "[Scheduler][xcs]: global_frequency = " << global_frequency << endl;
                 }
-                else if (utilization < downThreshold)
+                else
                 {
-                    cout << "[Scheduler][xcs]: utilization < downThreshold";
-                    if (frequency == minFrequency)
-                    {
-                        cout << " but already at min frequency" << endl;
-                    }
-                    else
-                    {
-                        cout << " -> lower frequency" << endl;
-                        frequency = frequency * 80 / 100;
-                        frequency = (frequency / frequencyStepSize) *
-                                    frequencyStepSize; // round
-                        if (frequency < minFrequency)
-                        {
-                            frequency = minFrequency;
-                        }
-                    }
+                    frequencies.at(coreCounter) = minFrequency;
                 }
-                frequencies.at(coreCounter) = frequency;
-                #endif
             }
-            else
-            {
-                frequencies.at(coreCounter) = minFrequency;
-            }
+            xcs_perform_action = false;
         }
+        else // keep frequencies and only update reward and learning parameters
+        {   
+            //cout << "[xcs]: perform learning stuff" << endl;
+            /* loop through all avaiable cores  */
+            for (unsigned int coreCounter = 0; coreCounter < coreRows * coreColumns;
+                coreCounter++)
+            {
+                /* check if current core is active  */
+                if (activeCores.at(coreCounter))
+                {
+                    /* set global core id to current core for xcs to access core    */
+                    global_core_id = coreCounter;
+
+                    /* set global frequency to old frequency of current core        */
+                    global_frequency = oldFrequencies.at(coreCounter);
+                    global_delta_frequency = 0;
+                    //cout << "[Scheduler][xcs]: global_frequency = " << global_frequency << endl;
+                    
+                    /* step in xcs classifier of current core                       */
+                    Environment->update_inputs();
+                    xcs_systems[coreCounter].step(flag_exploration, flag_condensation,xcs_perform_action);
+
+                    /* set new frequency for current core -> action of xcs system   */
+                    frequencies.at(coreCounter) = global_frequency + global_delta_frequency;
+                }
+                else
+                {
+                    frequencies.at(coreCounter) = minFrequency;
+                }
+            }
+            xcs_perform_action = true;
+        }
+        #endif
         return frequencies;
     }
 }

@@ -104,4 +104,5 @@ extern t_environment*	Environment;
 
 extern int global_core_id;
 extern float global_frequency;
+extern int global_delta_frequency;
 #endif

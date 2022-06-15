@@ -246,13 +246,17 @@ def example():
 def test_static_power():
     run(['4.0GHz', 'testStaticPower', 'slowDVFS'], get_instance('parsec-blackscholes', 3, input_set='simsmall'))
 
+def test_on_demand():
+    run(['ondemand', 'slowDVFS'], get_instance('parsec-blackscholes', 3, input_set='simsmall'))
+
 def test_custom_dvfs():
-    run(['xcs', 'slowDVFS'], get_instance('parsec-blackscholes', 3, input_set='simsmall'))
+    run(['xcs', 'fastDVFS'], get_instance('splash2-fft', 1, input_set='small'))
 
 
 def main():
     #example()
     #test_static_power()
+    #test_on_demand()
     test_custom_dvfs()
 
 

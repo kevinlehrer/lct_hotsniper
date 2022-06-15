@@ -4,7 +4,7 @@
 * Pallipadi, Venkatesh, and Alexey Starikovskiy.
 * "The ondemand governor."
 * Proceedings of the Linux Symposium. Vol. 2. No. 00216. 2006.
-*/
+*/  
 
 #ifndef __DVFS_XCS_H
 #define __DVFS_XCS_H
@@ -60,6 +60,10 @@ class DVFSxcs : public DVFSPolicy {
         
         bool in_throttle_mode = false;
         bool throttle();
+
+        bool xcs_perform_action;
+
+        bool initialized;
 
         /**********************************************************************/
         /* XCS specific stuff *************************************************/

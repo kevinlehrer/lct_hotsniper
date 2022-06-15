@@ -510,6 +510,7 @@ private:
  public:
 	//!	a step of a problem
 	void	step(const bool exploration_mode,const bool condensationMode);
+	void	step(const bool exploration_mode,const bool condensationMode,const bool performAction);
 
 	//!  build the match set [M]; it returns the number of microclassifiers that match the sensory configuration
 	unsigned long	match(const t_state& detectors);

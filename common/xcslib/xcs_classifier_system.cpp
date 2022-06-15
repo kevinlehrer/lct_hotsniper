@@ -91,7 +91,11 @@
 #include <algorithm>
 #include "xcs_classifier_system.hpp"
 
+#include "rl_definitions.hpp"
+
 using namespace std;
+
+//#define __DEBUG__ 1
 
 //! reset all the collected statistics
 void
@@ -474,18 +478,28 @@ xcs_classifier_system::match(const t_state& detectors)
 	unsigned long			sz = 0;		/// number of micro classifiers in [M]
 
 	match_set.clear();				/// [M] = {}
-
+	//cout << "population = " << population << endl;
+	//cout << "population.begin() : " << population.begin() << endl;
+	//cout << "popluation.end()   : " << population.end() << endl;
+	int count_population = 0;
 	for(pp=population.begin();pp!=population.end();pp++)
 	{
-// 		cout << "classifier = " << **pp << endl;
-// 		cout << "input      = " << detectors << endl;
-
+		//cout << "iterator = " << pp << endl;
+ 		//cout << "classifier = " << **pp << endl;
+ 		//cout << "input      = " << detectors << endl;
+		#if 1
 		if ((**pp).match(detectors))
 		{
 			match_set.push_back(*pp);
 			sz += (**pp).numerosity;
+			//cout << "[xcs]: match " << sz << endl;
        		}
+		#endif
+		count_population++;
    	}
+	//cout << "[xcs]: population size = " << count_population << endl;
+	//cout << "[XCS]: sz = " << sz << endl;
+	
 	return sz;
 }
 
@@ -493,6 +507,7 @@ xcs_classifier_system::match(const t_state& detectors)
 bool
 xcs_classifier_system::perform_covering(t_classifier_set &match_set, const t_state& detectors)
 {
+	//cout << "[xcs]: covering (2) " << endl;
 	switch (covering_strategy)
 	{
 		//! perform covering according to Wilson 1995
@@ -985,9 +1000,21 @@ xcs_classifier_system::step(const bool exploration_mode, const bool condensation
 	double		P;						//! value for prediction update, computed as r + gamma * max P(.) 
 	double		max_prediction;
 
+	cout << "[xcs] step" << endl;
+	
 	//! reads the current input
 	current_input = Environment->state(); 
+	cout << "[xcs]: got current input" << endl;
 
+	vector<double> meas;
+	current_input.numeric_representation(meas);
+
+	#if 0
+	for(auto i=0; i<3; i++)
+		cout << "[xcs]: measurement " << i << " = " << meas[i] << endl;
+	#endif
+
+	#if 1
 	//! update the number of learning steps performed so far
 	if (exploration_mode)
 	{
@@ -999,12 +1026,17 @@ xcs_classifier_system::step(const bool exploration_mode, const bool condensation
 	 * if it does, it apply the selected covering strategy, i.e., standard as defined in Wilson 1995,
 	 * or action_based as defined in Butz and Wilson 2001
 	 */
-
+	int n=0;
 	do {
+		n++;
+		cout << "[xcs]: match(1)" << endl;
 		match_set_size = match(current_input);
+		cout << "[XCS] matchset size " << match_set_size << endl;
+		//cout << "[XCS] ich finde kein match" << endl;
 	}
    	while (perform_covering(match_set, current_input));
-
+	//cout << "[xcs]: got covering" << endl;
+	//cout << "[xcs]: match set size = " << match_set_size << endl;
 	//! build the prediction array P(.)
 	build_prediction_array();
 
@@ -1058,7 +1090,8 @@ xcs_classifier_system::step(const bool exploration_mode, const bool condensation
 	//! if [A]-1 is not empty it computes P
 	if ((exploration_mode || flag_update_test) && previous_action_set.size())
 	{
-
+		// TODO: check why we get here and what happens here!!!
+		//cout << "[xcs]: in reinforcment stuff that i donÄt want" << endl;
 #ifdef __DEBUG__
 		cerr << "Fa l'update" << endl;
 #endif
@@ -1104,6 +1137,161 @@ xcs_classifier_system::step(const bool exploration_mode, const bool condensation
 	previous_action_set = action_set;
 	action_set.clear();
 	previous_reward = Environment->reward();
+	#endif
+}
+
+
+void	
+xcs_classifier_system::step(const bool exploration_mode, const bool condensationMode, const bool performAction)
+{
+	t_action	action;					//! selected action
+	unsigned long	match_set_size;		//! number of microclassifiers in [M]
+	//unsigned long	action_set_size;	//! number of microclassifiers in [A]
+	double		P;						//! value for prediction update, computed as r + gamma * max P(.) 
+	double		max_prediction;
+
+	//cout << "[xcs] step" << endl;
+	
+	if(performAction)
+	{
+		//! reads the current input
+		current_input = Environment->state(); 
+		//cout << "[xcs]: got current input" << endl;
+
+		vector<double> meas;
+		current_input.numeric_representation(meas);
+
+		#if 0
+		for(auto i=0; i<3; i++)
+			cout << "[xcs]: measurement " << i << " = " << meas[i] << endl;
+		#endif
+
+		//! update the number of learning steps performed so far
+		if (exploration_mode)
+		{
+			total_steps++;
+		}
+
+		/*! 
+		* check if [M] needs covering,
+		* if it does, it apply the selected covering strategy, i.e., standard as defined in Wilson 1995,
+		* or action_based as defined in Butz and Wilson 2001
+		*/
+		int n=0;
+		do {
+			n++;
+			//cout << "[xcs]: match(1)" << endl;
+			match_set_size = match(current_input);
+			//cout << "[XCS] matchset size " << match_set_size << endl;
+			//cout << "[XCS] ich finde kein match" << endl;
+		}
+		while (perform_covering(match_set, current_input));
+		//cout << "[xcs]: got covering" << endl;
+		//cout << "[xcs]: match set size = " << match_set_size << endl;
+		//! build the prediction array P(.)
+		build_prediction_array();
+
+	#ifdef __DEBUG__
+		cout << "BUILT THE PREDICTION ARRAY" << endl;
+		print_prediction_array(cout);
+		cout << endl;
+	#endif
+		
+		//! select the action to be performed
+		if (exploration_mode)
+			select_action(action_selection_strategy, action);
+		else 
+			select_action(ACTSEL_DETERMINISTIC, action);
+
+		//! build [A]
+		build_action_set(action);
+
+	#ifdef __DEBUG__
+		cout << "ACTION " << action << endl;
+	#endif
+		//! store the current input before performing the selected action
+		/*!
+		* used by the genetic algorithm
+		*/
+		previous_input = Environment->state();
+
+		Environment->perform(action);
+
+		//! if the environment is single step, the system error is collected
+		if (Environment->single_step())
+		{
+			double payoff = prediction_array[action.value()].payoff;
+			system_error = fabs(payoff-Environment->reward());
+		}
+
+	#ifdef __DEBUG__
+		cout << "ACTION " << action << "\t";
+		cout << "REWARD " << Environment->reward() << endl;
+
+		if (flag_update_test)
+			cerr << "Update During Test" << endl;
+		else 
+			cerr << "No Update During Test" << endl;
+	#endif
+
+	}	// performAction
+	else
+	{
+		total_reward = total_reward + Environment->reward();
+
+		//! reinforcement component
+		
+		//! if [A]-1 is not empty it computes P
+		if ((exploration_mode || flag_update_test) && previous_action_set.size())
+		{
+			//cout << "[xcs]: in reinforcment stuff that i donÄt want" << endl;
+	#ifdef __DEBUG__
+			cerr << "Fa l'update" << endl;
+	#endif
+
+			vector<t_system_prediction>::iterator	pr = prediction_array.begin();
+			max_prediction = pr->payoff;
+
+			for(pr = prediction_array.begin(); pr!=prediction_array.end(); pr++)
+			{
+				if (max_prediction<pr->payoff)
+				{
+					max_prediction = pr->payoff;
+				}
+			}
+
+			P = previous_reward + discount_factor * max_prediction;
+
+			//! use P to update the classifiers parameters
+			update_set(P, previous_action_set);
+		}
+
+		if (Environment->stop())
+		{
+			P = Environment->reward();
+			if (exploration_mode || flag_update_test)
+			{
+	#ifdef __DEBUG__
+				cerr << "Fa l'update" << endl;
+	#endif
+				update_set(P, action_set);
+			}
+		}
+
+		//! apply the genetic algorithm to [A] if needed
+		if (flag_discovery_component && need_ga(action_set, exploration_mode))
+		{
+			genetic_algorithm(action_set, previous_input, condensationMode);
+			stats.no_ga++;
+		}
+		
+		//!	[A]-1 <= [A]
+		//!	r-1 <= r
+		previous_action_set = action_set;
+		action_set.clear();
+		previous_reward = Environment->reward();
+	}
+
 }
 
 void	
@@ -1264,7 +1452,8 @@ xcs_classifier_system::perform_nma_covering(t_classifier_set &match_set, const t
 	//! in the prediction array P(.)
 	
 	covered_actions = available_actions.size();
-
+	cout << "[xcs]: covered actions = " << covered_actions << endl;
+	cout << "[xcs]: theta_nma = " << tetha_nma <<endl;
 	covered_some_actions = false;
 
 	if (covered_actions<tetha_nma)
@@ -1286,6 +1475,7 @@ xcs_classifier_system::perform_nma_covering(t_classifier_set &match_set, const t
 				delete_classifier();
 
 				covered_actions++;
+				cout << "[xcs]: covered actions increased"  << endl;
 			}
 		}
 		covered_some_actions = true;
