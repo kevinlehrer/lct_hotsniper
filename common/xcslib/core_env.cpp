@@ -83,9 +83,10 @@ using namespace std;
 #define SEL_UTILIZATION		1
 #define SEL_IPS				2
 
-#define IPS_REF				  5000000
-#define IPS_MAX				400000000
-#define POW_CONSTRAIN		1 				// [W] in benchmarks usually 1.2 if full 
+#define IPS_REF				4000000000
+#define IPS_MAX				8000000000 
+#define POW_CONSTRAIN		1.8 				// [W] in benchmarks usually 1.2 if full 
+#define POW_CONSTRAIN_MAX	POW_CONSTRAIN + 0.5
 
 #define DELTA_F				100				// [MHz]
 
@@ -180,25 +181,46 @@ const
 	return(true); 
 }
 
-double 
+double
 core_env::reward()  const
 {
-	float current_power = measurements->getPowerOfCore(global_core_id);
+	current_power = measurements->getPowerOfCore(global_core_id);
 
 	/* update inputs: we want to have inputs after action got used	*/
 	//update_inputs();
 
 	/* reward function as described in not published paper	*/
+	#if 0
+	if ((current_inputs[SEL_IPS] - IPS_REF) < 0)
+	{
+		cout << "something is wrong with IPS config " << endl;
+	}
+	else
+	{
+		cout << "current IPS = " << current_inputs[SEL_IPS] << " / IPS_ref = " << IPS_REF << endl;
+	}
+	#endif
+	printf("previous power = %f / current power = %f\n", previous_power, current_power);
 	double delta = abs( current_inputs[SEL_IPS] - IPS_REF) / IPS_MAX;
 	double reward;
 	if(current_power <= POW_CONSTRAIN)
 	{
 		reward = 1 - delta;
 	}
+	#if 1
+	else if(previous_power < current_power)
+	{
+		reward = 0.1;
+	}
+	#endif
 	else
 	{
 		reward = 0;
 	}
+	//previous_power = current_power;
+	//printf("previous power = %f / current power = %f", previous_power, current_power);
+
+	//else if(current_power > POW_CONSTRAIN & < POW_CONSTRAIN_MAX)
 
 	return reward;
 }
@@ -209,7 +231,8 @@ core_env::perform(const t_action& action)
 	// TODO: perform action via HotSniper funcitons
 	// Actions: increase frequency, decrease frequency, keep frequency constant
 	// Reward handling???
-	
+	previous_power = current_power;
+	printf("updated previous power to %f\n", previous_power);
 	if(action.value() == 0)		// keep frequency
 	{
 		global_delta_frequency = 0;
@@ -230,11 +253,11 @@ void
 core_env::trace(ostream& output) const
 {
 	int old_precision = output.precision();
-	output.setf(ios::scientific);
-	output.precision(5);
-	output << current_reward;
-	output.unsetf(ios::scientific);
-	output.precision(old_precision);
+	//output.setf(ios::scientific);
+	//output.precision(5);
+	output << reward() << endl;
+	//output.unsetf(ios::scientific);
+	//output.precision(old_precision);
 }
 
 void 

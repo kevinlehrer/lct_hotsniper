@@ -176,6 +176,8 @@ SchedulerOpen::SchedulerOpen(ThreadManager *thread_manager)
 		cout<<"\n[Scheduler] [Error]: Invalid system size: " << numberOfCores << ", expected rectangular-shaped system." << endl;
 		exit (1);
 	}
+
+	cout << "\n[Scheduler] [Info]: coreRows = " << coreRows << " / coreColumns =  " << coreColumns << endl;
 	double ambientTemperature = Sim()->getCfg()->getFloat("periodic_thermal/ambient_temperature");
     double maxTemperature = Sim()->getCfg()->getFloat("periodic_thermal/max_temperature");
     double inactivePower = Sim()->getCfg()->getFloat("periodic_thermal/inactive_power");

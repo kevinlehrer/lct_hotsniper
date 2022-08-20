@@ -61,9 +61,13 @@ class DVFSxcs : public DVFSPolicy {
         bool in_throttle_mode = false;
         bool throttle();
 
-        bool xcs_perform_action;
-
+        //bool xcs_perform_action;
+        std::vector<bool> xcs_perform_action;
+        std::vector<int> frequencies;
         bool initialized;
+
+        std::vector<ofstream> traceFile;
+        ofstream traceTest;
 
         /**********************************************************************/
         /* XCS specific stuff *************************************************/

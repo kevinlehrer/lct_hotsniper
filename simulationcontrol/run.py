@@ -250,7 +250,7 @@ def test_on_demand():
     run(['ondemand', 'slowDVFS'], get_instance('parsec-blackscholes', 3, input_set='simsmall'))
 
 def test_custom_dvfs():
-    run(['xcs', 'fastDVFS'], get_instance('splash2-fft', 1, input_set='small'))
+    run(['xcs', 'fastDVFS'], get_instance('splash2-fft', 1, input_set='large'))
 
 
 def main():

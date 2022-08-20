@@ -168,6 +168,8 @@ class core_env : public virtual environment_base
 	vector<double>			current_inputs;		//!< same information as in "inputs" as a vector of double
 	vector<double>			problem_in;
 	vector<double>			current_inputs_scaled;
+	mutable double 			current_power;
+	mutable double			previous_power;
 
 	int 					core_id;
 
@@ -182,7 +184,7 @@ class core_env : public virtual environment_base
 	 */
 	unsigned long			address_size;
 
-	//! true if it the reward is layered (Butz et al. GECCO 2001)
+	//! true if it the reward is layered (Butz etđr al. GECCO 2001)
 	bool				flag_layered_reward;		
 
 	//! size of the whole multiplexer string, e.g., 6 for the 6-way multiplexer
