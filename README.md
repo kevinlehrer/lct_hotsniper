@@ -1,3 +1,7 @@
+### Implementation of a learning based Controller for each Core in HotSniper Toolchain for Many-Core Thermal Simulations in Open Systems
+This repository is part of my research practice on the chair of integrated systems at the technical university munich. It is based on HotSniper many-core thermal simulation toolchain. During this work I created a learning based controller into Hotsniper as a DVFS scheduling policy. Idea behind this controller was to simulate the behavior of a Learning Classifier Table (LCT). This is a hardware-based machine-learning approached based on the idea of Learning Classifier Systems, currently in research at TUM.
+
+
 ### Next Release: CoMeT Simulator
 
 CoMeT: CoMeT is next-generation open-source EDA toolchain for integrated core-memory interval thermal simulations of 2D, 2.5, and 3D multi-/many-core processors. CoMeT *subsumes* the code of HotSniper.
